@@ -11,19 +11,18 @@
   (norminf x))
 
 ;; Cartesian equations of motion
-(defstate cartx (r v))
-(defstatemethods cartx (r v))
+;;(defstate cartx (r v))
+;;(defstatemethods cartx (r v))
 (defun carteom (tm x)
   "Cartesian orbital equations of motion"
-  (with-slots (r v) x
-    (make-instance 
-     'cartx
+  (lethash x (r v)
+    (make-hash
      :r v
      :v (*gs r (/ -1 (expt (norme r) 3))))))
 
 ;; Kustaanheimo-Stiefel-Hestenes Equations of Planetary Motion
-(defstate kshx (alpha beta e tm))
-(defstatemethods kshx (alpha beta e tm))
+;;(defstate kshx (alpha beta e tm))
+;;(defstatemethods kshx (alpha beta e tm))
 (defvar *kshparam* (make-hash :forcefun #'(lambda (s x) 0) :sigma0 (ve3 :c1 1)))
 (defun w0 (e)
   "Average orbit angular velocity given energy"
@@ -53,7 +52,7 @@
   "KS equations of motion in Hestenes GA form. 
 Orbit elements are: alpha (U0), beta (dU0/ds/w0), e (orbit energy), tm (time) 
 Expects a variable *data* containing sigma0 (initial orbit frame vector) and forcefun (force function of s, x, and *data*)"
-  (with-slots (alpha beta e tm) x
+  (lethash x (alpha beta e tm) x
     (let* ((w0 (w0 e))
 	   (u (u alpha beta w0 s))
 	   (duds (duds alpha beta w0 s))
@@ -61,8 +60,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	   (r (spin sigma u))
 	   (f (funcall (gethash :forcefun *kshparam*) s x))
 	   (ff (*g f r u)))
-      (make-instance 
-       'kshx
+      (make-hash
        :alpha (dalphads ff w0 s)
        :beta (dbetads ff w0 s)
        :e (deds f duds sigma u)
@@ -71,7 +69,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 ;; Spinor functions
 (defun recoverrotor3d (fs es)
   "Recover a basis given new and original bases"
-  (let ((psi (gbc+ (apply #'+g (mapcar #'*g2 fs (recipbvs es))) 0 1)))
+  (let ((psi (gbc+ (apply #'g+ (mapcar #'*g2 fs (apply #'recipbvs es))) 0 1)))
     (if (zerogp psi)
 	(error "zero psi (180 deg rotation) unsupported")
 	(unitg psi))))
@@ -82,7 +80,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
   "Return a set of basis vectors derived from position and velocity"
   (let* ((mombv (*o2 rv vv))
 	 (x (unitg rv))
-	 (y (unitg (*g2 rv mombv)))
+	 (y (unitg (*i2 rv mombv)))
 	 (z (when (= 3 (dimension rv) (dimension vv))
 	      (*x2 x y))))
     (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
@@ -94,7 +92,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	 (u (recoverspinor3d r (rvbasis rv vv) basis)))
     (values
      u
-     (*gs (*g vv u (first basis))
+     (*gs (*g2 (*i2 vv u) (first basis))
 	  (/ 1 2 r)))))
 (defun duds2dt (duds u)
   "Convert spinor time derivative (also given spinor) to s derivative"
@@ -118,8 +116,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
   (multiple-value-bind (u dudt) (rv2spinors rv vv basis)
     (let* ((duds (dudt2ds dudt u))
 	   (e (spinors2energy u duds mu)))
-      (make-instance 
-       'kshx
+      (make-hash
        :alpha u 
        :beta (/gs duds (sqrt (- (/ e 2))))
        :e e
@@ -181,8 +178,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   (/ mu (* -2 (energy-rv r v mu))))
 (defun eccv-rv (rv vv mu)
   "eccentricity vector from position, velocity, & gravitational parameter"
-  (/gs (-g (*gs rv (- (norme2 vv) (/ mu (norme rv))))
-	   (*gs vv (scalar (*i2 rv vv))))
+  (/gs (g2- (*gs rv (- (norme2 vv) (/ mu (norme rv))))
+	    (*gs vv (scalar (*i2 rv vv))))
        mu))
 (defun mombv-rv (rv vv)
   "orbital momentum bivector from position & velocity"
@@ -241,4 +238,5 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defun testksh (data)
   (lethash data (s0 sf x0)
-    (rka #'ksheom s0 sf x0)))
+    (let ((*kshparam* data))
+      (rka #'ksheom s0 sf x0))))
