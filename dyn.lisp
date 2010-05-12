@@ -90,10 +90,10 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
   "Convert position and velocity vectors to spinor and spinor time derivative"
   (let* ((r (norme rv))
 	 (u (recoverspinor3d r (rvbasis rv vv) basis)))
-    (values
-     u
-     (*gs (*g2 (*i2 vv u) (first basis))
-	  (/ 1 2 r)))))
+    (make-hash
+     :u u
+     :dudt (*gs (*g2 (*i2 vv u) (first basis))
+		(/ 1 2 r)))))
 (defun duds2dt (duds u)
   "Convert spinor time derivative (also given spinor) to s derivative"
   (/gs duds (norme2 u)))
@@ -113,7 +113,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 ;; KSH conversion functions
 (defun rv2ksh (rv vv basis mu)
   "Given position, velocity, list of basis vectors, and gravitational parameter, return KSH state initialized as time=0 and s=0"
-  (multiple-value-bind (u dudt) (rv2spinors rv vv basis)
+  (lethash (rv2spinors rv vv basis) (u dudt)
     (let* ((duds (dudt2ds dudt u))
 	   (e (spinors2energy u duds mu)))
       (make-hash
@@ -123,19 +123,19 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
        :tm 0))))
 (defun ksh2spinors (x s)
   "Convert KSH state to spinor & spinor s-derivative"
-  (with-slots (alpha beta e tm) x
+  (lethash x (alpha beta e tm)
     (let ((w0 (w0 e)))
-      (values
-       (u alpha beta w0 s) ; spinor
-       (duds alpha beta w0 s))))) ; spinor s-derivative
+      (make-hash
+       :u (u alpha beta w0 s) ; spinor
+       :duds (duds alpha beta w0 s))))) ; spinor s-derivative
 (defun ksh2rv (x s sigma0)
   "Calculate position & velocity vectors from KSH state, s, and initial orbit position unit vector (sigma0)"
-  (with-slots (alpha beta e tm) x
-    (multiple-value-bind (u duds) (ksh2spinors x s)
+  (lethash x (alpha beta e tm)
+    (lethash (ksh2spinors x s) (u duds)
       (let ((sigma (spin sigma0 alpha)))
-	(values
-	 (spinor2r u sigma) ; position
-	 (spinors2v (duds2dt duds u) u sigma)))))) ; velocity
+	(make-hash
+	 :r (spinor2r u sigma) ; position
+	 :v (spinors2v (duds2dt duds u) u sigma)))))) ; velocity
 
 ;; Classical orbit elements
 (defun coe2rv (sma ecc inc raan aop truan mu basis)
