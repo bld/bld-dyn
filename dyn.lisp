@@ -44,7 +44,7 @@
   (*gs ff (/ (cos (* w0 s)) w0)))
 (defun deds (f duds sigma u)
   "s-derivative of energy"
-  (scalar (*i2 f (*g duds sigma (revg u)))))
+  (scalar (*i2 f (*g3 duds sigma (revg u)))))
 (defun dtmds (u)
   "s-derivative of time"
   (norme2 u))
@@ -59,7 +59,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	   (sigma (spin (gethash :sigma0 *kshparam*) alpha))
 	   (r (spin sigma u))
 	   (f (funcall (gethash :forcefun *kshparam*) s x))
-	   (ff (*g f r u)))
+	   (ff (*g3 f r u)))
       (make-hash
        :alpha (dalphads ff w0 s)
        :beta (dbetads ff w0 s)
@@ -92,7 +92,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	 (u (recoverspinor3d r (rvbasis rv vv) basis)))
     (make-hash
      :u u
-     :dudt (*gs (*g2 (*i2 vv u) (first basis))
+     :dudt (*gs (*g3 vv u (first basis))
 		(/ 1 2 r)))))
 (defun duds2dt (duds u)
   "Convert spinor time derivative (also given spinor) to s derivative"
@@ -105,7 +105,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
   (spin basis1 u))
 (defun spinors2v (dudt u basis1)
   "Given spinor time derivative, spinor, and 1st basis vector, return corresponding velocity vector"
-  (*gs (*g dudt basis1 (revg u)) 2d0))
+  (*gs (*g3 dudt basis1 (revg u)) 2d0))
 (defun spinors2energy (u duds mu)
   "Given spinor, spinor s-derivative, and gravitational parameter, return orbit energy"
   (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))
@@ -164,7 +164,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	 (angmbv (*gs (*o2 (first basis-truan) (second basis-truan)) angm))
 	 (eccuv (first basis-aop))
 	 (eccv (*gs eccuv ecc))
-	 (vv (*gs (*g (invv angmbv) (+g eccv ruv))
+	 (vv (*gs (*g2 (invv angmbv) (+g eccv ruv))
 		  mu)))
     (values (graden rv 1) (graden vv 1))))
 
