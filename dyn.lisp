@@ -15,7 +15,7 @@
 ;;(defstatemethods cartx (r v))
 (defun carteom (tm x)
   "Cartesian orbital equations of motion"
-  (lethash x (r v)
+  (with-keys (r v) x
     (make-hash
      :r v
      :v (*gs r (/ -1 (expt (norme r) 3))))))
@@ -52,7 +52,7 @@
   "KS equations of motion in Hestenes GA form. 
 Orbit elements are: alpha (U0), beta (dU0/ds/w0), e (orbit energy), tm (time) 
 Expects a variable *data* containing sigma0 (initial orbit frame vector) and forcefun (force function of s, x, and *data*)"
-  (lethash x (alpha beta e tm) x
+  (with-keys (alpha beta e tm) x
     (let* ((w0 (w0 e))
 	   (u (u alpha beta w0 s))
 	   (duds (duds alpha beta w0 s))
@@ -113,7 +113,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 ;; KSH conversion functions
 (defun rv2ksh (rv vv basis mu)
   "Given position, velocity, list of basis vectors, and gravitational parameter, return KSH state initialized as time=0 and s=0"
-  (lethash (rv2spinors rv vv basis) (u dudt)
+  (with-keys (u dudt) (rv2spinors rv vv basis)
     (let* ((duds (dudt2ds dudt u))
 	   (e (spinors2energy u duds mu)))
       (make-hash
@@ -123,15 +123,15 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
        :tm 0))))
 (defun ksh2spinors (x s)
   "Convert KSH state to spinor & spinor s-derivative"
-  (lethash x (alpha beta e tm)
+  (with-keys (alpha beta e tm) x
     (let ((w0 (w0 e)))
       (make-hash
        :u (u alpha beta w0 s) ; spinor
        :duds (duds alpha beta w0 s))))) ; spinor s-derivative
 (defun ksh2rv (x s sigma0)
   "Calculate position & velocity vectors from KSH state, s, and initial orbit position unit vector (sigma0)"
-  (lethash x (alpha beta e tm)
-    (lethash (ksh2spinors x s) (u duds)
+  (with-keys (alpha beta e tm) x
+    (with-keys (u duds) (ksh2spinors x s)
       (let ((sigma (spin sigma0 alpha)))
 	(make-hash
 	 :r (spinor2r u sigma) ; position
@@ -237,6 +237,6 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   "Test data for KSH equations of motion")
 
 (defun testksh (data)
-  (lethash data (s0 sf x0)
+  (with-keys (s0 sf x0) data
     (let ((*kshparam* data))
       (rka #'ksheom s0 sf x0))))
