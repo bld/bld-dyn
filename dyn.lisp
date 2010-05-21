@@ -240,3 +240,27 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   (with-keys (s0 sf x0) data
     (let ((*kshparam* data))
       (rka #'ksheom s0 sf x0))))
+
+(defparameter *kshsailtest*
+  (make-hash*
+   basis (list (ve3 :c1 1) (ve3 :c10 1) (ve3 :c100 1))
+   sigma0 (first basis)
+   alpha 0
+   delta 0
+   mu 1
+   beta 0.1
+   forcefun #'(lambda (s x) 
+		(with-keys (r v) (ksh2rv x s sigma0)
+		  (destructuring-bind (posuv tanuv orbuv) (rvbasis r v)
+		    (let ((normuv (g+ (*gs posuv (cos alpha))
+				      (*gs orbuv (* (sin alpha) (cos delta)))
+				      (*gs tanuv (* (sin alpha) (sin delta))))))
+		      (*gs normuv
+			   (/ (* beta mu (expt (scalar (*i2 posuv normuv)) 2))
+			      (norme2 r)))))))
+   r0 (ve3 :c1 1)
+   v0 (ve3 :c10 1)
+   x0 (rv2ksh r0 v0 basis mu)
+   s0 0
+   sf (* pi 2))
+  "Test data for KSH equations of motion with solar sail")
