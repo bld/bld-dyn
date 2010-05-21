@@ -6,9 +6,9 @@
   :author "Ben Diedrich"
   :version "0.0.1"
   :maintainer "Ben Diedrich"
-  :license "MIT"
+  :license "GPL"
   :description "Dynamics library"
   :components
   ((:file "package")
    (:file "dyn" :depends-on ("package")))
-  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils"))
+  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gagen" "bld-sym"))

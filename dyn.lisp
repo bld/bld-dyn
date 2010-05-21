@@ -27,25 +27,25 @@
 (defun w0 (e)
   "Average orbit angular velocity given energy"
   (sqrt (- (/ e 2))))
-(defun u (alpha beta w0 s)
+(defmethod u ((alpha g) (beta g) w0 s)
   "Spinor"
   (g2+ (*gs alpha (cos (* w0 s)))
        (*gs beta (sin (* w0 s)))))
-(defun duds (alpha beta w0 s)
+(defmethod duds ((alpha g) (beta g) w0 s)
   "s-derivative of spinor"
   (*gs (g2- (*gs beta (cos (* w0 s)))
 	    (*gs alpha (sin (* w0 s))))
        w0))
-(defun dalphads (ff w0 s)
+(defmethod dalphads ((ff g) w0 s)
   "s-derivative of alpha"
   (*gs ff (- (/ (sin (* w0 s)) w0))))
-(defun dbetads (ff w0 s)
+(defmethod dbetads ((ff g) w0 s)
   "s-derivative of beta"
   (*gs ff (/ (cos (* w0 s)) w0)))
-(defun deds (f duds sigma u)
+(defmethod deds ((f g) (duds g) (sigma g) (u g))
   "s-derivative of energy"
-  (scalar (*i2 f (*g3 duds sigma (revg u)))))
-(defun dtmds (u)
+  (scalar (*i2 f (*g duds sigma (revg u)))))
+(defmethod dtmds ((u g))
   "s-derivative of time"
   (norme2 u))
 (defun ksheom (s x)
@@ -59,7 +59,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	   (sigma (spin (gethash :sigma0 *kshparam*) alpha))
 	   (r (spin sigma u))
 	   (f (funcall (gethash :forcefun *kshparam*) s x))
-	   (ff (*g3 f r u)))
+	   (ff (*g f r u)))
       (make-hash
        :alpha (dalphads ff w0 s)
        :beta (dbetads ff w0 s)
@@ -86,27 +86,27 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
     (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
 	(list x y)
 	(list x y z))))
-(defun rv2spinors (rv vv basis)
+(defmethod rv2spinors ((rv g) (vv g) (basis list))
   "Convert position and velocity vectors to spinor and spinor time derivative"
   (let* ((r (norme rv))
 	 (u (recoverspinor3d r (rvbasis rv vv) basis)))
     (make-hash
      :u u
-     :dudt (*gs (*g3 vv u (first basis))
+     :dudt (*gs (*g vv u (first basis))
 		(/ 1 2 r)))))
-(defun duds2dt (duds u)
+(defmethod duds2dt ((duds g) (u g))
   "Convert spinor time derivative (also given spinor) to s derivative"
   (/gs duds (norme2 u)))
-(defun dudt2ds (dudt u)
+(defmethod dudt2ds ((dudt g) (u g))
   "Convert spinor s derivative (also given spinor) to t derivative"
   (*gs dudt (norme2 u)))
-(defun spinor2r (u basis1)
+(defmethod spinor2r ((u g) (basis1 g))
   "Given spinor and 1st basis vector, return corresponding position vector"
   (spin basis1 u))
-(defun spinors2v (dudt u basis1)
+(defmethod spinors2v ((dudt g) (u g) (basis1 g))
   "Given spinor time derivative, spinor, and 1st basis vector, return corresponding velocity vector"
-  (*gs (*g3 dudt basis1 (revg u)) 2d0))
-(defun spinors2energy (u duds mu)
+  (*gs (*g dudt basis1 (revg u)) 2d0))
+(defmethod spinors2energy ((u g) (duds g) mu)
   "Given spinor, spinor s-derivative, and gravitational parameter, return orbit energy"
   (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))
 
