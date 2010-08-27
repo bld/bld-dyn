@@ -10,42 +10,69 @@
 (defmethod norminfx ((x g))
   (norminf x))
 
+;; Print hash table entries
+(defmethod print-object ((object hash-table) stream)
+  (format stream "#<HASH-TABLE")
+  (maphash #'(lambda (k v) (format stream " :~a ~a" k v)) object)
+  (format stream ">"))
+
+;; Sail force functions
+(defvar *lightness* 0.1 "Sail lightness number")
+(defvar *mu* 1 "Gravitational parameter")
+(defmethod sail-normal-force ((rv g) mu lightness)
+  (*gs (unitg rv) (/n2 (*n2 lightness mu) (norme2 rv))))
+
 ;; Cartesian equations of motion
-;;(defstate cartx (r v))
-;;(defstatemethods cartx (r v))
+(defvar *cart-forcefun* #'(lambda (tm x) (ve3)))
+(defvar *cart-forcefun-sail-normal*
+  #'(lambda (tm x)
+      (sail-normal-force (gethash :r x) *mu* *lightness*)))
+(defmethod dvdt ((r g))
+  "Cartesian gravitational acceleration"
+  (*gs r (/n2 -1 (exptn (norme r) 3))))
+
 (defun carteom (tm x)
   "Cartesian orbital equations of motion"
   (with-keys (r v) x
     (make-hash
      :r v
-     :v (*gs r (/ -1 (expt (norme r) 3))))))
+     :v (g2+ (dvdt r) (funcall *cart-forcefun* tm x)))))
 
-;; Kustaanheimo-Stiefel-Hestenes Equations of Planetary Motion
-;;(defstate kshx (alpha beta e tm))
-;;(defstatemethods kshx (alpha beta e tm))
-(defvar *kshparam* (make-hash :forcefun #'(lambda (s x) 0) :sigma0 (ve3 :c1 1)))
+;; KS equations of motion
+
+(defvar *ksh-forcefun* #'(lambda (s x) (ve3)) "KSH force function")
+(defvar *ksh-sigma0* (ve3 :c1 1) "KSH reference unit position vector")
+
 (defun w0 (e)
   "Average orbit angular velocity given energy"
   (sqrt (- (/ e 2))))
-(defun u (alpha beta w0 s)
+(defmethod u ((alpha g) (beta g) w0 s)
   "Spinor"
-  (g2+ (*gs alpha (cos (* w0 s)))
-       (*gs beta (sin (* w0 s)))))
-(defun duds (alpha beta w0 s)
+  (g2+ (*gs alpha (cosn (*n2 w0 s)))
+       (*gs beta (sinn (*n2 w0 s)))))
+(defmethod alpha ((u g) (duds g) w0 s)
+  "Alpha (U0) given U, DUDS, W0, and S"
+  (g2- (*gs u (cosn (*n2 w0 s)))
+       (*gs duds (/n2 (sinn (*n2 w0 s))
+		      w0))))
+(defmethod beta ((u g) (duds g) w0 s)
+  "Beta (dU/ds/w0) given U, DUDS, w0, and s"
+  (g2+ (*gs u (sinn (*n2 w0 s)))
+       (*gs duds (/n2 (cosn (*n2 w0 s))
+		      w0))))
+(defmethod duds ((beta g) w0)
   "s-derivative of spinor"
-  (*gs (g2- (*gs beta (cos (* w0 s)))
-	    (*gs alpha (sin (* w0 s))))
-       w0))
-(defun dalphads (ff w0 s)
+  (*gs beta w0))
+(defmethod dalphads ((ff g) w0 s)
   "s-derivative of alpha"
-  (*gs ff (- (/ (sin (* w0 s)) w0))))
-(defun dbetads (ff w0 s)
+  (*gs ff (negn (/n2 (sinn (*n2 w0 s)) w0))))
+(defmethod dbetads ((ff g) w0 s)
   "s-derivative of beta"
-  (*gs ff (/ (cos (* w0 s)) w0)))
-(defun deds (f duds sigma u)
+  (*gs ff (/n2 (cosn (*n2 w0 s)) w0)))
+(defmethod deds ((f g) (duds g) (sigma g) (u g))
   "s-derivative of energy"
   (scalar (*i2 f (*g3 duds sigma (revg u)))))
-(defun dtmds (u)
+(defmethod dtmds ((u g))
   "s-derivative of time"
   (norme2 u))
 (defun ksheom (s x)
@@ -56,9 +83,9 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
     (let* ((w0 (w0 e))
 	   (u (u alpha beta w0 s))
 	   (duds (duds alpha beta w0 s))
-	   (sigma (spin (gethash :sigma0 *kshparam*) alpha))
+	   (sigma (spin *ksh-sigma0* alpha))
 	   (r (spin sigma u))
-	   (f (funcall (gethash :forcefun *kshparam*) s x))
+	   (f (funcall *ksh-forcefun* s x))
 	   (ff (*g3 f r u)))
       (make-hash
        :alpha (dalphads ff w0 s)
@@ -86,14 +113,17 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
     (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
 	(list x y)
 	(list x y z))))
+(defmethod rv2u ((rv g) (vv g) (basis list))
+  (recoverspinor3d (norme rv) (rvbasis rv vv) basis))
+(defmethod rv2dudt ((vv g) (u g) (basis1 g))
+  (*gs (*g vv u basis1)
+       (/n1 (*n2 2 (norme2 u)))))
 (defun rv2spinors (rv vv basis)
   "Convert position and velocity vectors to spinor and spinor time derivative"
-  (let* ((r (norme rv))
-	 (u (recoverspinor3d r (rvbasis rv vv) basis)))
+  (let ((u (rv2u rv vv basis)))
     (make-hash
      :u u
-     :dudt (*gs (*g3 vv u (first basis))
-		(/ 1 2 r)))))
+     :dudt (rv2dudt vv u (first basis)))))
 (defun duds2dt (duds u)
   "Convert spinor time derivative (also given spinor) to s derivative"
   (/gs duds (norme2 u)))
@@ -118,7 +148,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	   (e (spinors2energy u duds mu)))
       (make-hash
        :alpha u 
-       :beta (/gs duds (sqrt (- (/ e 2))))
+       :beta (/gs duds (sqrtn (negn (/n2 e 2))))
        :e e
        :tm 0))))
 (defun ksh2spinors (x s)
@@ -164,7 +194,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	 (angmbv (*gs (*o2 (first basis-truan) (second basis-truan)) angm))
 	 (eccuv (first basis-aop))
 	 (eccv (*gs eccuv ecc))
-	 (vv (*gs (*g2 (invv angmbv) (+g eccv ruv))
+	 (vv (*gs (*g2 (invv angmbv) (g+ eccv ruv))
 		  mu)))
     (values (graden rv 1) (graden vv 1))))
 
@@ -186,7 +216,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   (*o2 rv vv))
 (defun nodev-rv (mombv basis)
   "ascending node vector from momentum and basis"
-  (-g (*i2 (third basis) mombv)))
+  (g- (*i2 (third basis) mombv)))
 (defun inc-rv (mombv basis)
   "inclination from momentum bivector and basis"
   (acos (/ (scalar (*i2 (third basis) (dual mombv)))
@@ -220,7 +250,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
      :inc (inc-rv mombv basis)
      :raan (raan-rv nodev basis)
      :aop (aop-rv nodev eccv basis)
-     :truan (truan eccv rv vv))))
+     :truan (truan-rv eccv rv vv))))
 
 ;; Test KSH equations of motion
 (defparameter *kshtest*
@@ -264,3 +294,19 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
    s0 0
    sf (* pi 2))
   "Test data for KSH equations of motion with solar sail")
+
+(defparameter *ksh-forcefun-sail-normal*
+  #'(lambda (s x)
+      (with-keys (r v) (ksh2rv x s *ksh-sigma0*)
+	(sail-normal-force r *mu* *lightness*))))
+
+(defvar *ephemeris*
+  (make-hash
+   :alpha (re2 :c0 1)
+   :beta (re2 :c11 -1)
+   :e -0.5))
+
+(defun planet-ksh-eom (s x)
+  (with-keys (alpha beta e) *ephemeris*
+    (dtmds (u alpha beta (w0 e) s))))
+
