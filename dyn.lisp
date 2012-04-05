@@ -1,14 +1,8 @@
 (in-package :bld-dyn)
 
-;; Infinity norm
+;; Define infinity norm method for BLD-ODE Runge-Kutta method
 (defmethod norminfx ((x g))
   (norminf x))
-
-;; Print hash table entries
-(defmethod print-object ((object hash-table) stream)
-  (format stream "#<HASH-TABLE")
-  (maphash #'(lambda (k v) (format stream " :~a ~a" k v)) object)
-  (format stream ">"))
 
 ;; Sail force functions
 (defvar *lightness* 0.1 "Sail lightness number")
