@@ -10,6 +10,5 @@
   :description "Dynamics library employing geometric algebra"
   :components
   ((:file "package")
-   (:file "dyn" :depends-on ("package"))
-   (:file "opt" :depends-on ("dyn")))
-  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-sym" "bld-gagen"))
+   (:file "dyn" :depends-on ("package")))
+  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gen"))

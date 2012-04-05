@@ -1,12 +1,6 @@
 (in-package :bld-dyn)
 
-;; State algebra methods
-(defmethod +x2 ((a g) (b g))
-  (g2+ a b))
-(defmethod -x2 ((a g) (b g))
-  (g2- a b))
-(defmethod *xs ((x g) (s number))
-  (*gs x s))
+;; Infinity norm
 (defmethod norminfx ((x g))
   (norminf x))
 
@@ -20,7 +14,7 @@
 (defvar *lightness* 0.1 "Sail lightness number")
 (defvar *mu* 1 "Gravitational parameter")
 (defmethod sail-normal-force ((rv g) mu lightness)
-  (*gs (unitg rv) (/n2 (*n2 lightness mu) (norme2 rv))))
+  (* (unitg rv) (/ (* lightness mu) (norme2 rv))))
 
 ;; Cartesian equations of motion
 (defvar *cart-forcefun* #'(lambda (tm x) (ve3)))
@@ -29,14 +23,14 @@
       (sail-normal-force (gethash :r x) *mu* *lightness*)))
 (defmethod dvdt ((r g))
   "Cartesian gravitational acceleration"
-  (*gs r (/n2 -1 (exptn (norme r) 3))))
+  (* r (/ -1 (expt (norme r) 3))))
 
 (defun carteom (tm x)
   "Cartesian orbital equations of motion"
   (with-keys (r v) x
     (make-hash
      :r v
-     :v (g2+ (dvdt r) (funcall *cart-forcefun* tm x)))))
+     :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
 
 ;; KS equations of motion
 
@@ -48,30 +42,30 @@
   (sqrt (- (/ e 2))))
 (defmethod u ((alpha g) (beta g) w0 s)
   "Spinor"
-  (g2+ (*gs alpha (cosn (*n2 w0 s)))
-       (*gs beta (sinn (*n2 w0 s)))))
+  (+ (* alpha (cos (* w0 s)))
+     (* beta (sin (* w0 s)))))
 (defmethod alpha ((u g) (duds g) w0 s)
   "Alpha (U0) given U, DUDS, W0, and S"
-  (g2- (*gs u (cosn (*n2 w0 s)))
-       (*gs duds (/n2 (sinn (*n2 w0 s))
-		      w0))))
+  (- (* u (cos (* w0 s)))
+     (* duds (/ (sin (* w0 s))
+		w0))))
 (defmethod beta ((u g) (duds g) w0 s)
   "Beta (dU/ds/w0) given U, DUDS, w0, and s"
-  (g2+ (*gs u (sinn (*n2 w0 s)))
-       (*gs duds (/n2 (cosn (*n2 w0 s))
-		      w0))))
+  (+ (* u (sin (* w0 s)))
+     (* duds (/ (cos (* w0 s))
+		w0))))
 (defmethod duds ((beta g) w0)
   "s-derivative of spinor"
-  (*gs beta w0))
+  (* beta w0))
 (defmethod dalphads ((ff g) w0 s)
   "s-derivative of alpha"
-  (*gs ff (negn (/n2 (sinn (*n2 w0 s)) w0))))
+  (* ff (- (/ (sin (* w0 s)) w0))))
 (defmethod dbetads ((ff g) w0 s)
   "s-derivative of beta"
-  (*gs ff (/n2 (cosn (*n2 w0 s)) w0)))
+  (* ff (/ (cos (* w0 s)) w0)))
 (defmethod deds ((f g) (duds g) (sigma g) (u g))
   "s-derivative of energy"
-  (scalar (*i2 f (*g3 duds sigma (revg u)))))
+  (scalar (*i f (*g3 duds sigma (revg u)))))
 (defmethod dtmds ((u g))
   "s-derivative of time"
   (norme2 u))
@@ -82,7 +76,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
   (with-keys (alpha beta e tm) x
     (let* ((w0 (w0 e))
 	   (u (u alpha beta w0 s))
-	   (duds (duds alpha beta w0 s))
+	   (duds (duds beta w0))
 	   (sigma (spin *ksh-sigma0* alpha))
 	   (r (spin sigma u))
 	   (f (funcall *ksh-forcefun* s x))
@@ -96,18 +90,18 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 ;; Spinor functions
 (defun recoverrotor3d (fs es)
   "Recover a basis given new and original bases"
-  (let ((psi (gbc+ (apply #'g+ (mapcar #'*g2 fs (apply #'recipbvs es))) 0 1)))
+  (let ((psi (+ (apply #'+ (mapcar #'*g fs (apply #'recipbvs es))) 1)))
     (if (zerogp psi)
 	(error "zero psi (180 deg rotation) unsupported")
 	(unitg psi))))
 (defun recoverspinor3d (r fs es)
   "Recover a spinor given radius, new basis, and original basis"
-  (*gs (recoverrotor3d fs es) (sqrt r)))
+  (* (recoverrotor3d fs es) (sqrt r)))
 (defun rvbasis (rv vv)
   "Return a set of basis vectors derived from position and velocity"
-  (let* ((mombv (*o2 rv vv))
+  (let* ((mombv (*o rv vv))
 	 (x (unitg rv))
-	 (y (unitg (*i2 rv mombv)))
+	 (y (unitg (*i rv mombv)))
 	 (z (when (= 3 (dimension rv) (dimension vv))
 	      (*x2 x y))))
     (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
@@ -116,8 +110,8 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 (defmethod rv2u ((rv g) (vv g) (basis list))
   (recoverspinor3d (norme rv) (rvbasis rv vv) basis))
 (defmethod rv2dudt ((vv g) (u g) (basis1 g))
-  (*gs (*g vv u basis1)
-       (/n1 (*n2 2 (norme2 u)))))
+  (* (*g3 vv u basis1)
+     (/ (* 2 (norme2 u)))))
 (defun rv2spinors (rv vv basis)
   "Convert position and velocity vectors to spinor and spinor time derivative"
   (let ((u (rv2u rv vv basis)))
@@ -126,16 +120,16 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
      :dudt (rv2dudt vv u (first basis)))))
 (defun duds2dt (duds u)
   "Convert spinor time derivative (also given spinor) to s derivative"
-  (/gs duds (norme2 u)))
+  (/ duds (norme2 u)))
 (defun dudt2ds (dudt u)
   "Convert spinor s derivative (also given spinor) to t derivative"
-  (*gs dudt (norme2 u)))
+  (* dudt (norme2 u)))
 (defun spinor2r (u basis1)
   "Given spinor and 1st basis vector, return corresponding position vector"
   (spin basis1 u))
 (defun spinors2v (dudt u basis1)
   "Given spinor time derivative, spinor, and 1st basis vector, return corresponding velocity vector"
-  (*gs (*g3 dudt basis1 (revg u)) 2d0))
+  (* (*g3 dudt basis1 (revg u)) 2d0))
 (defun spinors2energy (u duds mu)
   "Given spinor, spinor s-derivative, and gravitational parameter, return orbit energy"
   (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))
@@ -148,7 +142,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	   (e (spinors2energy u duds mu)))
       (make-hash
        :alpha u 
-       :beta (/gs duds (sqrtn (negn (/n2 e 2))))
+       :beta (/ duds (sqrt (- (/ e 2))))
        :e e
        :tm 0))))
 (defun ksh2spinors (x s)
@@ -157,7 +151,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
     (let ((w0 (w0 e)))
       (make-hash
        :u (u alpha beta w0 s) ; spinor
-       :duds (duds alpha beta w0 s))))) ; spinor s-derivative
+       :duds (duds beta w0))))) ; spinor s-derivative
 (defun ksh2rv (x s sigma0)
   "Calculate position & velocity vectors from KSH state, s, and initial orbit position unit vector (sigma0)"
   (with-keys (alpha beta e tm) x
@@ -178,23 +172,23 @@ AOP argument of perigee
 TRUAN true anomaly
 MU gravitational parameter
 BASIS list of 3 orthogonal basis vectors to express position & velocity in"
-  (let* ((r-raan (rotor (*o2 (first basis) (second basis)) raan))
+  (let* ((r-raan (rotor (*o (first basis) (second basis)) raan))
 	 (basis-raan (mapcar #'(lambda (x) (rot x r-raan)) basis))
-	 (r-inc (rotor (*o2 (second basis-raan) (third basis-raan)) inc))
+	 (r-inc (rotor (*o (second basis-raan) (third basis-raan)) inc))
 	 (basis-inc (mapcar #'(lambda (x) (rot x r-inc)) basis-raan))
-	 (r-aop (rotor (*o2 (first basis-inc) (second basis-inc)) aop))
+	 (r-aop (rotor (*o (first basis-inc) (second basis-inc)) aop))
 	 (basis-aop (mapcar #'(lambda (x) (rot x r-aop)) basis-inc))
-	 (r-truan (rotor (*o2 (first basis-aop) (second basis-aop)) truan))
+	 (r-truan (rotor (*o (first basis-aop) (second basis-aop)) truan))
 	 (basis-truan (mapcar #'(lambda (x) (rot x r-truan)) basis-aop))
 	 (p (* sma (- 1 (* ecc ecc))))
 	 (r (/ p (+ 1 (* ecc (cos truan)))))
 	 (ruv (first basis-truan))
-	 (rv (*gs ruv r))
+	 (rv (* ruv r))
 	 (angm (sqrt (/ p mu)))
-	 (angmbv (*gs (*o2 (first basis-truan) (second basis-truan)) angm))
+	 (angmbv (* (*o (first basis-truan) (second basis-truan)) angm))
 	 (eccuv (first basis-aop))
-	 (eccv (*gs eccuv ecc))
-	 (vv (*gs (*g2 (invv angmbv) (g+ eccv ruv))
+	 (eccv (* eccuv ecc))
+	 (vv (* (*g (invv angmbv) (+ eccv ruv))
 		  mu)))
     (values (graden rv 1) (graden vv 1))))
 
@@ -208,35 +202,35 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   (/ mu (* -2 (energy-rv r v mu))))
 (defun eccv-rv (rv vv mu)
   "eccentricity vector from position, velocity, & gravitational parameter"
-  (/gs (g2- (*gs rv (- (norme2 vv) (/ mu (norme rv))))
-	    (*gs vv (scalar (*i2 rv vv))))
+  (/ (- (* rv (- (norme2 vv) (/ mu (norme rv))))
+	(* vv (scalar (*i rv vv))))
        mu))
 (defun mombv-rv (rv vv)
   "orbital momentum bivector from position & velocity"
-  (*o2 rv vv))
+  (*o rv vv))
 (defun nodev-rv (mombv basis)
   "ascending node vector from momentum and basis"
-  (g- (*i2 (third basis) mombv)))
+  (- (*i (third basis) mombv)))
 (defun inc-rv (mombv basis)
   "inclination from momentum bivector and basis"
-  (acos (/ (scalar (*i2 (third basis) (dual mombv)))
+  (acos (/ (scalar (*i (third basis) (dual mombv)))
 	   (norme mombv))))
 (defun raan-rv (nodev basis)
   "right ascension of ascending node from node vector and basis"
-  (let ((tmp (acos (scalar (*i2 (first basis) (unitg nodev))))))
-    (if (< 0 (scalar (*i2 (second basis) nodev)))
+  (let ((tmp (acos (scalar (*i (first basis) (unitg nodev))))))
+    (if (< 0 (scalar (*i (second basis) nodev)))
 	(- (* 2 pi) tmp)
 	tmp)))
 (defun aop-rv (nodev eccv basis)
   "argument of perigee from node vector, eccentricity vector, and basis"
-  (let ((tmp (acos (scalar (*i2 (unitg nodev) (unitg eccv))))))
-    (if (< 0 (scalar (*i2 (third basis) eccv)))
+  (let ((tmp (acos (scalar (*i (unitg nodev) (unitg eccv))))))
+    (if (< 0 (scalar (*i (third basis) eccv)))
 	(- (* 2 pi) tmp)
 	tmp)))
 (defun truan-rv (eccv rv vv)
   "true anomaly from eccentricity, position, and velocity vectors"
-  (let ((tmp (acos (scalar (*i2 (unitg eccv) (unitg rv))))))
-    (if (< 0 (scalar (*i2 rv vv)))
+  (let ((tmp (acos (scalar (*i (unitg eccv) (unitg rv))))))
+    (if (< 0 (scalar (*i rv vv)))
 	(- (* 2 pi) tmp)
 	tmp)))
 (defun rv2coe (rv vv mu basis)
@@ -282,12 +276,12 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
    forcefun #'(lambda (s x) 
 		(with-keys (r v) (ksh2rv x s sigma0)
 		  (destructuring-bind (posuv tanuv orbuv) (rvbasis r v)
-		    (let ((normuv (g+ (*gs posuv (cos alpha))
-				      (*gs orbuv (* (sin alpha) (cos delta)))
-				      (*gs tanuv (* (sin alpha) (sin delta))))))
-		      (*gs normuv
-			   (/ (* beta mu (expt (scalar (*i2 posuv normuv)) 2))
-			      (norme2 r)))))))
+		    (let ((normuv (+ (* posuv (cos alpha))
+				     (* orbuv (* (sin alpha) (cos delta)))
+				     (* tanuv (* (sin alpha) (sin delta))))))
+		      (* normuv
+			 (/ (* beta mu (expt (scalar (*i posuv normuv)) 2))
+			    (norme2 r)))))))
    r0 (ve3 :c1 1)
    v0 (ve3 :c10 1)
    x0 (rv2ksh r0 v0 basis mu)
