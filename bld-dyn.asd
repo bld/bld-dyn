@@ -5,4 +5,4 @@
   :components
   ((:file "package")
    (:file "dyn" :depends-on ("package")))
-  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gen"))
+  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gen" "lol"))
