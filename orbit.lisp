@@ -8,13 +8,14 @@
 (defvar *lightness* 0.1 "Sail lightness number")
 (defvar *mu* 1 "Gravitational parameter")
 (defmethod sail-normal-force ((rv g) mu lightness)
+  "Solar sail force function when sail normal to the sun. RV is the position vector from the sun to the sail."
   (* (unitg rv) (/ (* lightness mu) (norme2 rv))))
 
 ;; Cartesian equations of motion
-(defvar *cart-forcefun* #'(lambda (tm x) (ve3)))
+(defvar *cart-forcefun* #'(lambda (tm x) (ve3)) "Cartesian coordinate force function")
 (defvar *cart-forcefun-sail-normal*
   #'(lambda (tm x)
-      (sail-normal-force (gethash :r x) *mu* *lightness*)))
+      (sail-normal-force (gethash :r x) *mu* *lightness*)) "Cartesian coordinate force function with sail normal to the sun")
 (defmethod dvdt ((r g))
   "Cartesian gravitational acceleration"
   (* r (/ -1 (expt (norme r) 3))))
@@ -26,7 +27,7 @@
      :r v
      :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
 
-;; KS equations of motion
+;; Kustaanheimo-Stiefel-Hestenes (KSH) equations of motion
 
 (defvar *ksh-forcefun* #'(lambda (s x) (ve3)) "KSH force function")
 (defvar *ksh-sigma0* (ve3 :c1 1) "KSH reference unit position vector")
@@ -35,7 +36,7 @@
   "Average orbit angular velocity given energy"
   (sqrt (- (/ e 2))))
 (defmethod u ((alpha g) (beta g) w0 s)
-  "Spinor"
+  "Orbit spinor given ALPHA, BETA, W0, and S"
   (+ (* alpha (cos (* w0 s)))
      (* beta (sin (* w0 s)))))
 (defmethod alpha ((u g) (duds g) w0 s)
@@ -121,9 +122,9 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 (defun spinor2r (u basis1)
   "Given spinor and 1st basis vector, return corresponding position vector"
   (spin basis1 u))
-(defun spinors2v (dudt u basis1)
+(defmethod spinors2v ((dudt g) (u g) (basisx g))
   "Given spinor time derivative, spinor, and 1st basis vector, return corresponding velocity vector"
-  (* (*g3 dudt basis1 (revg u)) 2d0))
+  (graden (* (*g3 dudt basisx (revg u)) 2d0) 1))
 (defun spinors2energy (u duds mu)
   "Given spinor, spinor s-derivative, and gravitational parameter, return orbit energy"
   (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))
@@ -255,9 +256,21 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   "Test data for KSH equations of motion")
 
 (defun testksh (data)
-  (with-keys (s0 sf x0) data
-    (let ((*kshparam* data))
+  (with-keys (s0 sf x0 forcefun sigma0) data
+    (let ((*ksh-sigma0* sigma0)
+	  (*ksh-forcefun* forcefun))
       (rka #'ksheom s0 sf x0))))
+#|
+(defun sail-ideal-forcefun (s x)
+  (with-keys (r v) (ksh2rv x s sigma0)
+    (destructuring-bind (posuv tanuv orbuv) (rvbasis r v)
+      (let ((normuv (+ (* posuv (cos alpha))
+		       (* orbuv (* (sin alpha) (cos delta)))
+		       (* tanuv (* (sin alpha) (sin delta))))))
+	(* normuv
+	   (/ (* beta mu (expt (scalar (*i posuv normuv)) 2))
+	      (norme2 r)))))))
+|#
 
 (defparameter *kshsailtest*
   (make-hash*
@@ -276,6 +289,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 		      (* normuv
 			 (/ (* beta mu (expt (scalar (*i posuv normuv)) 2))
 			    (norme2 r)))))))
+;;   forcefun #'sail-ideal-forcefun
    r0 (ve3 :c1 1)
    v0 (ve3 :c10 1)
    x0 (rv2ksh r0 v0 basis mu)
