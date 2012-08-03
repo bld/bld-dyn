@@ -1,3 +1,16 @@
+#|
+
+Orbital Mechanics Library
+=========================
+
+Includes:
+* Cartesian coordinate equations of motion
+* Kustaanheimo-Stiefel equations of motion cast into geometric algebra by Hestenes
+* Simple Keplerian trajectories
+* Solar sail trajectories
+
+|#
+
 (in-package :bld-orbit)
 
 ;; Define infinity norm method for BLD-ODE Runge-Kutta method
@@ -15,19 +28,35 @@
 (defvar *cart-forcefun* #'(lambda (tm x) (ve3)) "Cartesian coordinate force function")
 (defvar *cart-forcefun-sail-normal*
   #'(lambda (tm x)
-      (sail-normal-force (gethash :r x) *mu* *lightness*)) "Cartesian coordinate force function with sail normal to the sun")
+      (sail-normal-force (slot-valuegethash :r x) *mu* *lightness*)) "Cartesian coordinate force function with sail normal to the sun")
 (defmethod dvdt ((r g))
   "Cartesian gravitational acceleration"
-  (* r (/ -1 (expt (norme r) 3))))
+  (- (* r (/ *mu* (expt (norme r) 3)))))
+
+(defclass cartstate ()
+  ((r :initarg r :documentation "Position vector")
+   (v :initarg v :documentation "Velocity vector"))
+  (:documentation "Cartesian coordinate state"))
+
+(defstatearithmetic cartstate (r v))
 
 (defun carteom (tm x)
   "Cartesian orbital equations of motion"
-  (with-keys (r v) x
-    (make-hash
-     :r v
-     :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
+  (with-slots (r v) x
+    (make-instance 'cartstate
+		   :r v
+		   :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
 
 ;; Kustaanheimo-Stiefel-Hestenes (KSH) equations of motion
+
+(defclass kshstate ()
+  ((alpha :initarg :alpha :accessor alpha :type re3 :initform (re3) :documentation "Initial orbit spinor")
+   (beta :initarg :beta :accessor beta :type re3 :initform (re3) :documentation "Initial ")
+   (e :initarg :e :accessor e :type number :initform -0.5d0 :documentation "Specific Kepler orbit energy")
+   (tm :initarg :tm :accessor tm :type number :initform 0d0 :documentation "Time")))
+
+;; Define ODE state arithmetic on KSHSTATE class
+(defstatearithmetic kshstate (alpha beta e tm))
 
 (defvar *ksh-forcefun* #'(lambda (s x) (ve3)) "KSH force function")
 (defvar *ksh-sigma0* (ve3 :c1 1) "KSH reference unit position vector")
@@ -39,24 +68,24 @@
   "Orbit spinor given ALPHA, BETA, W0, and S"
   (+ (* alpha (cos (* w0 s)))
      (* beta (sin (* w0 s)))))
-(defmethod alpha ((u g) (duds g) w0 s)
+#+nil(defmethod alpha ((u g) (duds g) w0 s)
   "Alpha (U0) given U, DUDS, W0, and S"
   (- (* u (cos (* w0 s)))
      (* duds (/ (sin (* w0 s))
 		w0))))
-(defmethod beta ((u g) (duds g) w0 s)
-  "Beta (dU/ds/w0) given U, DUDS, w0, and s"
+#+nil(defmethod beta ((u g) (duds g) w0 s)
+  "Beta (dU0/ds/w0) given U, DUDS, w0, and s"
   (+ (* u (sin (* w0 s)))
      (* duds (/ (cos (* w0 s))
 		w0))))
 (defmethod duds ((beta g) w0)
-  "s-derivative of spinor"
+  "s-derivative of spinor given BETA and W0"
   (* beta w0))
 (defmethod dalphads ((ff g) w0 s)
-  "s-derivative of alpha"
+  "s-derivative of alpha given FF, W0, and S"
   (* ff (- (/ (sin (* w0 s)) w0))))
 (defmethod dbetads ((ff g) w0 s)
-  "s-derivative of beta"
+  "s-derivative of beta given FF, W0, and S"
   (* ff (/ (cos (* w0 s)) w0)))
 (defmethod deds ((f g) (duds g) (sigma g) (u g))
   "s-derivative of energy"
@@ -256,6 +285,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   "Test data for KSH equations of motion")
 
 (defun testksh (data)
+  "Propagate an orbit from test data"
   (with-keys (s0 sf x0 forcefun sigma0) data
     (let ((*ksh-sigma0* sigma0)
 	  (*ksh-forcefun* forcefun))
@@ -306,9 +336,9 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   (make-hash
    :alpha (re2 :c0 1)
    :beta (re2 :c11 -1)
-   :e -0.5))
+   :e -0.5)
+  "Ephemeris of a planet")
 
 (defun planet-ksh-eom (s x)
   (with-keys (alpha beta e) *ephemeris*
     (dtmds (u alpha beta (w0 e) s))))
-
