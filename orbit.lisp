@@ -28,24 +28,36 @@ Includes:
 (defvar *cart-forcefun* #'(lambda (tm x) (ve3)) "Cartesian coordinate force function")
 (defvar *cart-forcefun-sail-normal*
   #'(lambda (tm x)
-      (sail-normal-force (slot-valuegethash :r x) *mu* *lightness*)) "Cartesian coordinate force function with sail normal to the sun")
+      (sail-normal-force (gethash :r x) *mu* *lightness*)) "Cartesian coordinate force function with sail normal to the sun")
 (defmethod dvdt ((r g))
   "Cartesian gravitational acceleration"
   (- (* r (/ *mu* (expt (norme r) 3)))))
 
 (defclass cartstate ()
-  ((r :initarg r :documentation "Position vector")
-   (v :initarg v :documentation "Velocity vector"))
+  ((r :initarg :r :documentation "Position vector")
+   (v :initarg :v :documentation "Velocity vector"))
   (:documentation "Cartesian coordinate state"))
+
+(defmethod print-object ((x cartstate) stream)
+  (format stream "#<CARTSTATE :r ~a :v ~a>" (slot-value x 'r) (slot-value x 'v)))
 
 (defstatearithmetic cartstate (r v))
 
-(defun carteom (tm x)
+(defmethod carteom ((tm number) (x hash-table))
+  "Cartesian orbital equations of motion"
+  (with-keys (r v) x
+    (make-hash
+     :r v
+     :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
+
+(defmethod carteom ((tm number) (x cartstate))
   "Cartesian orbital equations of motion"
   (with-slots (r v) x
-    (make-instance 'cartstate
-		   :r v
-		   :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
+    (make-instance
+     'cartstate
+     :r v
+     :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
+
 
 ;; Kustaanheimo-Stiefel-Hestenes (KSH) equations of motion
 
